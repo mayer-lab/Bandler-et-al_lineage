@@ -1,0 +1,112 @@
+---
+title: "Lineage BC"
+output: html_notebook
+---
+
+### Hierarcical Clustering 
+
+Extract clonal relationship to subset matrix for dendrogram/heatmap visualization
+
+```{r}
+library(readr)
+library(philentropy)
+library(dendextend)
+```
+
+```{r}
+MUC28072_sparse_matrix <-readr::read_csv("/datastore_share/Users/mayho/cloneseq/MUC28072/MUC28072_sparse_matrix_UMI6.csv")
+MUC28072_sparse_matrix <- as.data.frame(MUC28072_sparse_matrix )
+```
+
+```{r}
+MUC28072_sparse_matrix$X1 <- NULL
+rownames(MUC28072_sparse_matrix) <- MUC28072_sparse_matrix$cellbc
+MUC28072_sparse_matrix$cellbc <- NULL
+head(MUC28072_sparse_matrix)
+```
+
+
+```{r}
+dist_mat <- distance(mtx, method = 'jaccard', use.row.names = TRUE)
+dist_mat <- as.dist(dist_mat)
+```
+
+```{r}
+hclust_avg <- hclust(dist_mat, method = 'average')
+# hclust_subset[["labels"]] <- top.clones$level3
+plot(hclust_avg, hang = -1, cex = 0.1)
+abline(h = 0.999, col = 'red')
+```
+
+
+```{r}
+# hclust_avg$height <- sort(hclust_avg$height)
+cut_avg <- cutree(hclust_avg, h = 0.999)
+clones <- stack(cut_avg)
+clones <- setNames(stack(cut_avg), c('clones', 'cellbc'))
+n_occur <- data.frame(table(clones$clones))
+multicc <- n_occur[n_occur$Freq >1,]
+```
+
+```{r}
+clones$dataset <- "MUC28072"
+clones$cellbc <- paste("MUC28072_", clones$cellbc, sep = "")
+colnames(clones)[1] <- "cloneID"
+head(clones)
+```
+
+```{r}
+write.csv(clones, file = "/datastore_share/Users/mayho/cloneseq/MUC28072/MUC28072_cloneIDs_UMI6.csv")
+```
+
+Subset the mtx further so only multi-cell clones are kept 
+
+```{r}
+cells <- clones[clones$clones %in% multicc$Var1,]$cellbc
+MUC28072_mtx_subset <- MUC28072_sparse_matrix[cells,]
+```
+
+### Extracting individual clonal relationship
+
+Output plots for desired clones 
+
+```{r}
+for (i in clones_viz){
+  cellbc <- MUC28072_mtx_subset[MUC28072_mtx_UMI6_subset$cloneID == i,]$cellbc
+  mtx <- MUC28072_sparse_matrix[cellbc,]
+  cond <- colSums(mtx) >= 1
+  mtx <- mtx[, cond]
+  hclust2 <- function(x) # define hclust functions
+    hclust(x, method="average")
+  dist2 <- function(x)
+    as.dist(distance(x, method = 'jaccard', use.row.names = TRUE))
+  pdf(file = paste("/datastore_share/Users/mayho/cloneseq/MUC28072/clones/MUC28072_",i, ".pdf", sep = ""), width = 12, height = 6)
+  hm <- heatmap(as.matrix(mtx), col = c("white", "black") , scale = "none")
+  dev.off()
+}
+```
+
+```{r}
+# pdf("/datastore_share/Users/mayho/crispr/ED210204/clone_408.pdf", width = 11, height = 6)
+mtx <- MUC28072_sparse_matrix[cbc.2cclones,]
+cond <- colSums(mtx) >= 1
+mtx <- mtx[, cond]
+hclust2 <- function(x) # define hclust functions
+  hclust(x, method="average")
+dist2 <- function(x)
+  as.dist(distance(x, method = 'jaccard', use.row.names = TRUE))
+hm <- heatmap(as.matrix(mtx), col = c("white", "black"), # scale = "none")
+        hclustfun = hclust2, distfun = dist2, scale = "none")
+# labRow = level3
+```
+
+
+```{r}
+rownames(clone2_mtx) <- paste("MUC28072_",rownames(clone2_mtx), sep = "")
+write.csv(clone2_mtx, file = "/datastore_share/Users/mayho/cloneseq/MUC28072/clone2_mtx.csv")
+```
+
+```{r}
+# extract row order
+rownames(MUC28072_mtx_subset)[hm$rowInd]
+```
