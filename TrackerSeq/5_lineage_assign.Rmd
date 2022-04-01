@@ -1,0 +1,101 @@
+---
+title: "Lineage Assign"
+output: html_notebook
+---
+
+
+```{r}
+library(readr)
+library(philentropy)
+library(dendextend)
+```
+
+```{r}
+ED211124_sparse_matrix <-readr::read_csv("/datastore_share//Users/mayho/barcodes/ED211124/ED211124_sparse_matrix_UMI6.csv")
+ED211124_sparse_matrix <- as.data.frame(ED211124_sparse_matrix)
+head(ED211124_sparse_matrix)
+```
+
+```{r}
+ED211124_sparse_matrix$...1 <- NULL
+rownames(ED211124_sparse_matrix) <- ED211124_sparse_matrix$cellbc
+ED211124_sparse_matrix$cellbc <- NULL
+```
+
+```{r}
+dist_mat <- philentropy::distance(ED211124_sparse_matrix, method = 'jaccard', use.row.names = TRUE)
+dist_mat <- as.dist(dist_mat)
+hclust_avg <- hclust(dist_mat, method = 'average')
+```
+
+```{r}
+plot(hclust_avg, hang = -1, cex = 0.1)
+abline(h = 0.999, col = 'red')
+```
+
+```{r}
+cut_avg <- cutree(hclust_avg, h = 0.999) # see section below if this command doesn't execute
+clones <- stack(cut_avg)
+clones <- setNames(stack(cut_avg), c('cloneID', 'cellbc'))
+n_occur <- data.frame(table(clones$cloneID))
+multicc <- n_occur[n_occur$Freq >1,]
+```
+```{r}
+# output table of clones
+write.csv(clones, file = "/datastore_share/Users/mayho/cloneseq/MUC28072/MUC28072_cloneIDs_UMI6.csv")
+```
+
+### Alternative cloneID assignment
+
+```{r}
+hclust_avg$height <- round(hclust_avg$height, 6)
+cut_avg <- cutree(hclust_avg, h = 0.999)
+```
+
+```{r}
+# dataframe of cellbcs and cloneIDs
+clones <- data.frame(
+  cloneID = cut_avg,
+  cellbc = rownames(ED211124_sparse_matrix)
+)
+head(clones)
+```
+
+```{r}
+# output table of clones
+write.csv(clones, file = "/datastore_share/Users/mayho/barcodes/ED211124/ED211124_cloneIDs.csv")
+```
+
+Merging cloneID table with Seurat metadata
+
+```{r}
+ED211124_temp_metadata <- ED211124@meta.data # create temporary metadata to perform merge
+ED211124_temp_metadata <- left_join(x =ED211124_temp_metadata, y = clones, all.x = FALSE, by = "cellbc")
+ED211124@meta.data$cloneID <- ED211124_temp_metadata$cloneID
+head(ED211124@meta.data)
+```
+
+### Misc. 
+
+Miscellaneous scripts for certain data processing tasks. 
+
+```{r}
+# extract row order
+rownames(MUC28072_mtx_subset)[hm$rowInd]
+```
+
+```{r}
+# removing duplicate cellbcs
+ED211124_sparse_matrix = subset(ED211124_sparse_matrix, !(cellbc %in% duplicate_cellbcs))
+```
+
+
+```{r}
+# determining which column & row index have 1
+which(mtx == 1, arr.ind=TRUE)
+```
+
+
+
+
+
